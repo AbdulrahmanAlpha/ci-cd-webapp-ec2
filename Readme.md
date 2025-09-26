@@ -21,7 +21,7 @@ The goal was to **automate build, test, and deployment** workflows, ensuring fas
 
 ## 🏗️ Architecture
 
-![Architecture Diagram](docs/Architecture_Diagram.png) <!-- add polished diagram later -->
+![Architecture Diagram](docs/Architecture%20Diagram.png) <!-- add polished diagram later -->
 
 **Key components:**
 
