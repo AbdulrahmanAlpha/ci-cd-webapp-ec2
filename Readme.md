@@ -4,6 +4,13 @@
 
 ---
 
+![Terraform](https://img.shields.io/badge/IaC-Terraform-blueviolet?logo=terraform)
+![AWS](https://img.shields.io/badge/Cloud-AWS-orange?logo=amazonaws)
+![CI/CD](https://img.shields.io/badge/CI%2FCD-Jenkins-blue?logo=jenkins)
+![Docker](https://img.shields.io/badge/Containers-Docker-blue?logo=docker)
+
+---
+
 ## 📌 Project Overview
 
 This project demonstrates how to build a **lightweight CI/CD pipeline** for deploying a web application on **AWS EC2** using **GitHub Actions** and **Docker**.
