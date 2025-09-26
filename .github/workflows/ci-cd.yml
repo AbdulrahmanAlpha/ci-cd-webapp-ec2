@@ -1,0 +1,89 @@
+name: CI/CD → ECR → EC2
+
+on:
+  push:
+    branches: [ "main", "master" ]
+
+env:
+  APP_NAME: ci-cd-webapp
+  APP_PORT: 3000
+  HEALTH_PATH: /health
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "18"
+
+    - name: Install deps
+      working-directory: ./app
+      run: npm ci
+
+    - name: Lint
+      working-directory: ./app
+      run: npm run lint
+
+    - name: Test
+      working-directory: ./app
+      run: npm test
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and Push Docker image to ECR
+      id: build
+      uses: docker/build-push-action@v4
+      with:
+        context: ./app
+        push: true
+        tags: ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
+        # optionally also tag latest:
+        # tags: >-
+        #   ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }},
+        #   ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+    - name: Set image output
+      run: echo "image=${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Wait a sec
+      run: sleep 3
+
+    - name: Deploy to EC2 via SSH
+      uses: appleboy/ssh-action@v0.1.9
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        port: 22
+        script: |
+          # ensure deploy script exists
+          DEPLOY_SCRIPT="/home/${{ secrets.EC2_USER }}/remote-deploy.sh"
+          if [ ! -f "$DEPLOY_SCRIPT" ]; then
+            echo "Uploading deploy script"
+            cat > $DEPLOY_SCRIPT <<'EOF'
+$(sed -n '1,300p' scripts/remote-deploy.sh)
+EOF
+            chmod +x $DEPLOY_SCRIPT
+          fi
+          IMAGE="${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}"
+          HEALTHURL="http://127.0.0.1:${{ env.APP_PORT }}${{ env.HEALTH_PATH }}"
+          $DEPLOY_SCRIPT "$IMAGE" "$HEALTHURL" "${{ env.APP_PORT }}"
